@@ -1,0 +1,8 @@
+services:
+  roboclean:
+    build: .
+    ports: ["3000:3000"]
+    volumes: ["roboclean-data:/app/data"]
+    restart: unless-stopped
+volumes:
+  roboclean-data:

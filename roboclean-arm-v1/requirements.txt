@@ -1,0 +1,2 @@
+# Liaison série avec l'Arduino (optionnel ; tkinter est fourni avec Python)
+pyserial>=3.5

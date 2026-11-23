@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboClean Arm-V1 — Gestion</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<header>
+ <h1>RoboClean Arm-V1 — Gestion de l'application</h1>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <span id="state">Connexion…</span>
+  <input id="api" aria-label="Adresse du serveur" size="24" placeholder="http://localhost:3000">
+  <button id="conn">Connecter</button>
+  <a class="btn pri" href="simulateur.html">Ouvrir le simulateur</a>
+ </div>
+</header>
+<main>
+ <section class="p c12"><div class="kpis" id="kpis"></div></section>
+ <section class="p c8"><h2>Effort maximal par cycle (20 derniers)</h2><svg id="chart" viewBox="0 0 600 200" role="img" aria-label="Effort maximal par cycle"></svg></section>
+ <section class="p c4"><h2>Journal des alarmes</h2><ul id="events"></ul></section>
+ <section class="p c12"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>Historique des cycles</h2>
+  <span><select id="fmode" aria-label="Filtrer"><option value="">Tous les modes</option><option value="ind">Industriel</option><option value="proto">Prototype</option></select>
+  <a class="btn" id="csv" href="#">Exporter en CSV</a></span></div>
+  <div class="tw"><table><thead><tr><th>N°</th><th>Date (UTC)</th><th>Mode</th><th>Statut</th><th>Durée</th><th>Passes</th><th>Fz max</th><th>Eau</th><th>Source</th><th>Notes</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></section>
+ <section class="p c12"><h2>Paramètres de commande</h2>
+  <form id="set"></form><p style="color:var(--mut);font-size:13px">La limite de force est plafonnée à 15 N (cahier des charges).</p></section>
+</main>
+<script src="app.js"></script></body></html>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RoboClean Arm-V1 — Poste de commande</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+:root{--bg:#eaf1f2;--pn:#fff;--ink:#12262b;--mut:#587176;--ac:#0b7f96;--wr:#b86d10;--er:#c0392b;--ok:#2a8556;--ln:#cbd9db;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e191c;--pn:#15262a;--ink:#e3eef0;--mut:#8fa8ad;--ac:#46c4dc;--wr:#e5a04a;--er:#ef6b5b;--ok:#5cc58b;--ln:#294045}}
+:root[data-theme=dark]{--bg:#0e191c;--pn:#15262a;--ink:#e3eef0;--mut:#8fa8ad;--ac:#46c4dc;--wr:#e5a04a;--er:#ef6b5b;--ok:#5cc58b;--ln:#294045}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--ln)}
+h1{font-size:20px;margin:0;font-weight:600}h2{font-size:15px;margin:0 0 10px;font-weight:600}
+#badge{padding:4px 12px;border-radius:99px;background:var(--ac);color:#fff;font-weight:600}
+#badge.sto{background:var(--er)}
+main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;padding:16px 20px;max-width:1200px;margin:auto}
+@media(max-width:820px){main{grid-template-columns:1fr}}
+.p{background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:14px;min-width:0}
+canvas{width:100%;height:auto;display:block}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+button,select{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--ln);background:var(--pn);color:var(--ink);cursor:pointer}
+button.go{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+button.es{background:var(--er);color:#fff;border-color:var(--er);font-weight:600}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--wr);outline-offset:2px}
+label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--mut);flex:1 1 140px}
+input[type=range]{width:100%}
+dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:0;font-variant-numeric:tabular-nums}
+dt{color:var(--mut)}dd{margin:0;text-align:right}
+.bar{height:8px;background:var(--ln);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac)}
+pre{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:6px;overflow-x:auto}
+#msg{color:var(--wr);min-height:20px;font-size:13px}
+</style></head><body>
+<header><h1>RoboClean Arm-V1 — Poste de commande</h1><a href="index.html" style="margin-left:auto;margin-right:12px">Gestion</a><span id="badge">Repos</span></header>
+<main>
+<section class="p" style="grid-column:1/-1">
+ <div class="row">
+  <label>Échelle / architecture<select id="mode"><option value="ind">Industriel 1:1 — PI d'effort 12,5 N</option><option value="proto">Prototype 1:2,5 — séquentiel, seuil 10 N</option></select></label>
+  <label>Vitesse de simulation<select id="spd"><option value="1">×1 (temps réel)</option><option value="4" selected>×4</option><option value="10">×10</option></select></label>
+  <button class="go" id="bGo">Lancer le cycle</button><button id="bPause">Pause</button>
+  <button class="es" id="bEs">Arrêt d'urgence</button><button id="bRe">Réarmer</button>
+ </div><div id="msg"></div>
+</section>
+<section class="p"><h2>Vue de côté du bras (plan du balayage)</h2><canvas id="sv" width="520" height="420"></canvas></section>
+<section class="p"><h2>Vitre : zone traitée</h2><canvas id="fv" width="300" height="300"></canvas>
+ <p style="font-size:13px;color:var(--mut);margin:8px 0 0">Bleu : montée avec tampon (humide). Vert : descente avec raclette (sec).</p></section>
+<section class="p"><h2>Effort d'appui Fz (N)</h2><canvas id="ch" width="520" height="170"></canvas>
+ <div class="row" style="margin-top:10px">
+  <label>Raideur de contact Ke : <b id="keV">4000</b> N/m<input type="range" id="ke" min="1000" max="12000" step="500" value="4000"></label>
+  <label style="flex:0 0 auto;flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="dl"> retard capteur d'un échantillon</label></div></section>
+<section class="p"><h2>Télémétrie</h2><dl id="tm"></dl>
+ <h2 style="margin-top:14px">Réservoirs</h2><div id="tk"></div>
+ <div class="row" style="margin-top:8px"><button id="bLow">Simuler niveau bas du tampon</button></div></section>
+<section class="p"><h2>Pilotage manuel (au repos)</h2>
+ <div class="row"><label>Position latérale Y : <b id="yV"></b> mm<input type="range" id="jy"></label>
+ <label>Hauteur Z : <b id="zV"></b> mm<input type="range" id="jz"></label></div></section>
+<section class="p"><h2>Liaison Arduino (prototype)</h2>
+ <div class="row"><button id="bSer">Connecter par port série</button><span id="serS" style="color:var(--mut)">Non connecté</span></div>
+ <p style="font-size:13px;color:var(--mut);margin:0 0 8px">Le navigateur envoie « Q a1…a6 » (angles servo, 0–180°) et « P 0/1 » (pompe) à 115200 bauds. Nécessite Chrome ou Edge.</p>
+ <details><summary>Sketch Arduino Uno + PCA9685</summary><pre id="sk"></pre></details></section>
+</main>
+<script>
+const $=id=>document.getElementById(id),C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const NAMES={IDLE:'Repos',FAST:'Approche rapide',SLOW:'Approche lente',PRESS:'Appui',SPRAY:'Pulvérisation',UP:'Balayage montée (tampon)',TURN:'Retournement A6',DOWN:'Balayage descente (raclette)',SHIFT:'Décalage latéral',RET:'Retrait',DONE:'Cycle terminé',STO:'Arrêt STO'};
+const CONTACT=['PRESS','SPRAY','UP','TURN','DOWN','SHIFT'];
+let fmaxS=0,lastSt='IDLE',mode,k,W,wt,xg,Ke=4000,pos,gap,F,Fs,dz,e1,zc,st,pass,npass,a6,t,spT,okT,hist,paused=0,sto,tk,pump,ser,wr,acc=0,last=performance.now(),nstep=0,tmT=0,Fp=0,reach=true,qs=[0,0,0,0,0,0];
+const wet=document.createElement('canvas');wet.width=wet.height=300;const wx=wet.getContext('2d');
+const d1=()=>400*k;
+function init(){mode=$('mode').value;k=mode=='proto'?.4:1;W=500*k;wt=350*k;xg=560*k;
+ npass=Math.ceil((W-wt)/(.85*wt))+1;pass=0;pos={y:-W/2+wt/2,z:-W/2};gap=150*k;F=Fs=Fp=dz=e1=zc=0;st='IDLE';a6=0;t=0;spT=0;okT=0;hist=[];sto=null;pump=0;
+ tk=mode=='proto'?{n:'Bidon gravitaire 1 L → réservoir embarqué',c:.25,lo:.05,hi:.24,v:.2,roof:1,fl:.1/60,u:'mL',m:1000}:{n:'Cuve toiture 100 L → tampon 10 L',c:10,lo:2,hi:9,v:9,roof:100,fl:3/60,u:'L',m:1,open:0};
+ tk.v0=tk.v;fmaxS=0;lastSt='IDLE';tk.open=0;wx.clearRect(0,0,300,300);$('msg').textContent='';
+ for(const [i,v] of [['jy',W-wt],['jz',W]]){const e=$(i);e.min=-v/2;e.max=v/2;e.step=1;e.value=i=='jy'?pos.y:pos.z}
+ $('keV').textContent=Ke;$('ke').disabled=mode=='proto';}
+const ystep=i=>Math.min(-W/2+wt/2+i*.85*wt,W/2-wt/2);
+function ik(){const X=xg-gap,L2=315*k,L3=365*k,a1=25*k,xw=X-80*k,r=Math.hypot(xw,pos.y)-a1,zw=pos.z;
+ const D=(r*r+zw*zw-L2*L2-L3*L3)/(2*L2*L3);if(Math.abs(D)>1)return null;
+ const t3=-Math.acos(D),t2=Math.atan2(zw,r)-Math.atan2(L3*Math.sin(t3),L2+L3*Math.cos(t3));
+ return{q1:Math.atan2(pos.y,xw),t2,t3,r}}
+function sto_(why){if(st!='STO'){st='STO';sto=why;$('msg').textContent='STO : '+why+'. Couple coupé, freins serrés. Cliquer sur « Réarmer ».'}}
+function paint(c){const h=W*.03,fy=z=>(W/2-z)/W*300,fx=y=>(y+W/2)/W*300;wx.fillStyle=c;wx.fillRect(fx(pos.y-wt/2),fy(pos.z+h),wt/W*300,2*h/W*300+1)}
+function step(){const dt=.005;t+=dt;nstep++;const a=Math.exp(-dt/.02),Kes=mode=='proto'?3300:Ke;
+ const inC=CONTACT.includes(st),dist=inC?(.35*Math.sin(2*Math.PI*.8*t)+.12*(Math.random()-.5)):0;
+ const Fo=Math.max(0,Fs+dist),Fm=$('dl').checked?Fp:Fo;Fp=Fo;F=Fo;fmaxS=Math.max(fmaxS,F);
+ if(inC){ if(mode=='ind'){const e=12.5-Fm;dz=Math.min(8,Math.max(0,dz+.452*e-.352*e1));e1=e;zc=dz}
+  else if(st=='PRESS'&&Fm<10)zc+=1.5*dt; Fs=a*Fs+Kes*(1-a)*zc/1000;}
+ else{Fs=0;dz=0;e1=0;zc=0;F=0}
+ if(F>15&&st!='STO')return sto_('effort '+F.toFixed(1)+' N > limite 15 N');
+ const v=30*k*dt;
+ // réservoir
+ if(tk.v<tk.lo)tk.open=1;if(tk.v>=tk.hi)tk.open=0;
+ if(tk.open&&tk.roof>0){tk.v+=tk.fl*dt;tk.roof-=tk.fl*dt}
+ pump=0;
+ switch(st){
+ case 'FAST':gap-=60*k*dt;if(gap<=30){gap=30;st='SLOW'}break;
+ case 'SLOW':gap-=10*dt;if(gap<=0){gap=0;st='PRESS';okT=0}break;
+ case 'PRESS':if(mode=='proto'?Fm>=10:Math.abs(12.5-Fm)<.6){okT+=dt;if(mode=='proto'||okT>.3){st='SPRAY';spT=mode=='proto'?1.5:2}}else okT=0;break;
+ case 'SPRAY':pump=1;spT-=dt;tk.v-=.45*(wt/1e3)*(W/1e3)*dt/(mode=='proto'?1.5:2);if(spT<=0)st='UP';break;
+ case 'UP':pos.z+=v;paint(C('--ac')+'66');if(pos.z>=W/2){pos.z=W/2;st='TURN'}break;
+ case 'TURN':{const up=pos.z>0;a6+=(up?150:-150)*dt;
+  if(up&&a6>=180){a6=180;st='DOWN'}if(!up&&a6<=0){a6=0;st='SPRAY';spT=1.5}}break;
+ case 'DOWN':pos.z-=v;paint(C('--ok')+'88');if(pos.z<=-W/2){pos.z=-W/2;if(pass+1<npass){pass++;st='SHIFT'}else st='RET'}break;
+ case 'SHIFT':{const ty=ystep(pass);pos.y=Math.min(ty,pos.y+60*k*dt);if(pos.y>=ty)st='TURN'}break;
+ case 'RET':gap+=80*k*dt;a6=0;if(gap>=150*k){gap=150*k;st='DONE';$('msg').textContent='Cycle terminé : '+npass+' passes.'}break;}
+ if(nstep%5==0){hist.push(F);if(hist.length>600)hist.shift()}}
+function drawSV(){const c=$('sv'),g=c.getContext('2d'),s=.6/k,X=v=>50+v*s,Z=v=>400-v*s,q=ik();g.clearRect(0,0,520,420);
+ g.strokeStyle=C('--ln');g.lineWidth=2;g.beginPath();g.moveTo(0,400);g.lineTo(520,400);g.stroke();
+ g.fillStyle=C('--mut');g.fillRect(X(-60*k),Z(300*k),120*k*s,300*k*s);g.fillRect(X(-90*k),Z(0)-6,180*k*s,6);
+ g.fillStyle=C('--ac')+'33';g.fillRect(X(xg),Z(d1()+W/2),8,W*s);g.fillStyle=C('--ac');g.fillRect(X(xg)+8,Z(d1()+W/2),2,W*s);
+ if(!q)return;const a1=25*k,sh=[a1,d1()],el=[sh[0]+315*k*Math.cos(q.t2),sh[1]+315*k*Math.sin(q.t2)],th=q.t2+q.t3,wr_=[el[0]+365*k*Math.cos(th),el[1]+365*k*Math.sin(th)],tip=[wr_[0]+80*k,wr_[1]];
+ g.lineCap='round';g.strokeStyle=C('--ink');g.lineWidth=14*(s/.6*k>.9?1:1);
+ for(const [p,r] of [[sh,el],[el,wr_],[wr_,tip]]){g.lineWidth=p==sh?16:p==el?12:7;g.beginPath();g.moveTo(X(p[0]),Z(p[1]));g.lineTo(X(r[0]),Z(r[1]));g.stroke()}
+ g.fillStyle=C('--wr');for(const p of [sh,el,wr_]){g.beginPath();g.arc(X(p[0]),Z(p[1]),6,0,7);g.fill()}
+ g.fillStyle=C('--er');g.fillRect(X(tip[0])-3,Z(tip[1])-22,6,44);
+ g.fillStyle=C('--ink');g.font='13px sans-serif';g.fillText('Fz = '+F.toFixed(1)+' N   écart vitre = '+gap.toFixed(0)+' mm',12,20);
+ const d=180/Math.PI;qs=[q.q1*d,90-q.t2*d,-q.t3*d,-q.q1*d,-(q.t2+q.t3)*d,a6]}
+function drawFV(){const g=$('fv').getContext('2d');g.clearRect(0,0,300,300);g.fillStyle=C('--ac')+'14';g.fillRect(0,0,300,300);g.drawImage(wet,0,0);
+ g.strokeStyle=C('--ln');g.lineWidth=3;g.strokeRect(1,1,298,298);const h=W*.03;
+ g.strokeStyle=C('--er');g.lineWidth=2;g.strokeRect((pos.y-wt/2+W/2)/W*300,(W/2-pos.z-h)/W*300,wt/W*300,2*h/W*300+1)}
+function drawCH(){const c=$('ch'),g=c.getContext('2d'),Y=f=>150-f*8;g.clearRect(0,0,520,170);
+ g.fillStyle=C('--ok')+'22';g.fillRect(0,Y(15),520,Y(10)-Y(15));g.strokeStyle=C('--mut');g.setLineDash([4,4]);g.beginPath();g.moveTo(0,Y(12.5));g.lineTo(520,Y(12.5));g.stroke();
+ g.strokeStyle=C('--er');g.beginPath();g.moveTo(0,Y(15));g.lineTo(520,Y(15));g.stroke();g.setLineDash([]);
+ g.strokeStyle=C('--ac');g.lineWidth=2;g.beginPath();hist.forEach((f,i)=>{const x=i*520/600;i?g.lineTo(x,Y(Math.min(f,18))):g.moveTo(x,Y(f))});g.stroke();
+ g.fillStyle=C('--mut');g.font='11px sans-serif';g.fillText('15 N (limite STO)',6,Y(15)-3);g.fillText('10–15 N',6,Y(10)+12)}
+function tm(){const q=qs.map(x=>x.toFixed(1)+'°'),R=1/(1+15/Math.max(F,.01)/10)*1023;
+ const rows=[['État',NAMES[st]],['Passe',(pass+1)+' / '+npass],['Fz mesurée',F.toFixed(2)+' N'],['Ultrasons',(gap/10).toFixed(1)+' cm'],mode=='proto'?['FSR (CAN)',Math.round(R)+' / seuil 890']:['Correcteur Δz',dz.toFixed(2)+' mm'],['q1 / q2 / q3',q.slice(0,3).join(' / ')],['q4 / q5 / q6',q.slice(3).join(' / ')],['Atteignable',reach?'oui':'<b style="color:var(--er)">non</b>'],['Pompe',pump?'ON':'off'],['Surface traitée',(Math.min(1,st=='DONE'?1:(pass+(st=='DOWN'?(W/2-pos.z)/W:0))/npass)*100|0)+' %']];
+ $('tm').innerHTML=rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+r[1]+'</dd>').join('');
+ $('tk').innerHTML='<div style="font-size:13px;color:var(--mut)">'+tk.n+'</div><div class="bar"><i style="width:'+(tk.v/tk.c*100)+'%"></i></div><div style="font-size:13px;margin:4px 0">Tampon '+(tk.v*tk.m).toFixed(tk.m>1?0:2)+' '+tk.u+' (bas '+tk.lo*tk.m+', haut '+tk.hi*tk.m+') · source '+(tk.roof*tk.m).toFixed(tk.m>1?0:1)+' '+tk.u+' · électrovanne '+(tk.open?'<b style="color:var(--wr)">ouverte</b>':'fermée')+'</div>'}
+function report(status){const o=localStorage.getItem('rc_api')||location.origin;
+ fetch(o+'/api/cycles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,status,duration_s:t,passes:Math.min(pass+1,npass),fmax:fmaxS,water_ml:Math.max(0,(tk.v0-tk.v)*1000*(mode=='proto'?1:1)),source:'simulateur-web',notes:sto||''})}).catch(()=>{})}
+function loop(now){if(st!=lastSt){if((st=='DONE'||st=='STO')&&lastSt!='IDLE')report(st);lastSt=st}if(!paused&&st!='STO'){acc=Math.min(acc+(now-last)*$('spd').value,3000);while(acc>=5){step();acc-=5}}last=now;
+ if(st=='IDLE'){pos.y=+$('jy').value;pos.z=+$('jz').value}
+ reach=!!ik();drawSV();drawFV();drawCH();$('yV').textContent=pos.y|0;$('zV').textContent=pos.z|0;
+ if(now-tmT>120){tm();tmT=now;const b=$('badge');b.textContent=NAMES[st];b.className=st=='STO'?'sto':''}requestAnimationFrame(loop)}
+$('bGo').onclick=()=>{if(!['IDLE','DONE'].includes(st))return;const m=mode;init();pos.y=ystep(0);pos.z=-W/2;st='FAST'};
+$('bPause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Reprendre':'Pause'};
+$('bEs').onclick=()=>sto_('arrêt d\'urgence manuel');
+$('bRe').onclick=()=>{if(st=='STO'){const mm=$('mode').value;init()}};
+$('bLow').onclick=()=>{tk.v=tk.lo*.9};
+$('mode').onchange=init;$('ke').oninput=e=>{Ke=+e.target.value;$('keV').textContent=Ke};
+$('sk').textContent=`#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+Adafruit_PWMServoDriver pwm;
+const int PUMP=7, ESTOP=2;           // relais pompe, arrêt d'urgence NC
+float cur[6]={90,90,90,90,90,90}, tgt[6]={90,90,90,90,90,90};
+void setup(){Serial.begin(115200);pwm.begin();pwm.setPWMFreq(50);
+  pinMode(PUMP,OUTPUT);pinMode(ESTOP,INPUT_PULLUP);}
+void loop(){
+  if(Serial.available()){char c=Serial.read();
+    if(c=='Q'){for(int i=0;i<6;i++)tgt[i]=constrain(Serial.parseFloat(),0,180);}
+    else if(c=='P')digitalWrite(PUMP,Serial.parseInt());}
+  // arrêt si contact ouvert ou effort > ~15 N (CAN FSR ≈ 930)
+  if(digitalRead(ESTOP)==HIGH||analogRead(A0)>=930)
+    for(int i=0;i<6;i++)tgt[i]=cur[i];
+  for(int i=0;i<6;i++){                // rampe 0,5°/5 ms
+    cur[i]+=constrain(tgt[i]-cur[i],-0.5,0.5);
+    pwm.setPWM(i,0,205+cur[i]*205.0/180);}
+  delay(5);}`;
+$('bSer').onclick=async()=>{try{const p=await navigator.serial.requestPort();await p.open({baudRate:115200});wr=p.writable.getWriter();ser=1;$('serS').textContent='Connecté'}catch(e){$('serS').textContent='Connexion impossible (Web Serial non disponible ici)'}};
+let lp=0;setInterval(async()=>{if(!ser)return;const A=qs.map((x,i)=>Math.max(0,Math.min(180,i==5?x:90+x)).toFixed(1));
+ try{await wr.write(new TextEncoder().encode('Q '+A.join(' ')+'\nP '+pump+'\n'))}catch(e){ser=0}},50);
+init();requestAnimationFrame(loop);
+</script></body></html>
